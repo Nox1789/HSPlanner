@@ -44,6 +44,8 @@ const MAX_SOCKETS = 32
 const MAX_NOTES_LENGTH = 200_000
 const MAX_CUSTOM_STATS = 200
 const MAX_SHARE_INPUT_LENGTH = 200_000
+const MAX_SETS_PER_BUNDLE = 3
+const MULTI_SCHEMA_VERSION = 3
 
 const FINITE_NUMBER = z.number().finite()
 const NON_NEGATIVE_NUMBER = z.number().finite().min(0)
@@ -453,6 +455,93 @@ export function decodeShareToBuild(code: string): DecodedShare | null {
     return deserialize(result.data as ShareableBuild)
   } catch {
     return null
+  }
+}
+
+const shareableMultiBuildSchema = z.object({
+  v: z.literal(MULTI_SCHEMA_VERSION),
+  sets: z
+    .array(
+      z.object({
+        nm: z.string().max(MAX_KEY_LENGTH),
+        b: shareableBuildSchema,
+      }),
+    )
+    .min(1)
+    .max(MAX_SETS_PER_BUNDLE),
+})
+
+export interface ShareableSetEntry {
+  name: string
+  snapshot: BuildSnapshot
+}
+
+export interface DecodedMultiShare {
+  sets: ShareableSetEntry[]
+  notes: string
+  season: string
+}
+
+export function encodeMultiBuildToShare(
+  sets: ShareableSetEntry[],
+  notes?: string,
+  seasonId: string = activeSeasonId,
+): string {
+  const payload = {
+    v: MULTI_SCHEMA_VERSION,
+    sets: sets.slice(0, MAX_SETS_PER_BUNDLE).map((s) => ({
+      nm: s.name,
+      b: serialize(s.snapshot, notes, seasonId),
+    })),
+  }
+  const json = JSON.stringify(payload)
+  return compressToEncodedURIComponent(json)
+}
+
+export function decodeMultiShareToBuild(code: string): DecodedMultiShare | null {
+  try {
+    if (typeof code !== 'string' || code.length > MAX_SHARE_INPUT_LENGTH) {
+      return null
+    }
+    const json = decompressFromEncodedURIComponent(code)
+    if (!json || json.length > MAX_SHARE_INPUT_LENGTH) return null
+    const parsed: unknown = JSON.parse(json)
+    const result = shareableMultiBuildSchema.safeParse(parsed)
+    if (!result.success) return null
+    const decodedSets = result.data.sets.map((s) => ({
+      name: s.nm,
+      decoded: deserialize(s.b as ShareableBuild),
+    }))
+    const first = decodedSets[0]
+    if (!first) return null
+    return {
+      sets: decodedSets.map((s) => ({
+        name: s.name,
+        snapshot: s.decoded.snapshot,
+      })),
+      notes: first.decoded.notes,
+      season: first.decoded.season,
+    }
+  } catch {
+    return null
+  }
+}
+
+export interface DecodedAnyShare {
+  sets: ShareableSetEntry[]
+  notes: string
+  season: string
+}
+
+export function decodeAnyShareToBuild(code: string): DecodedAnyShare | null {
+  const multi = decodeMultiShareToBuild(code)
+  if (multi) return multi
+  const single = decodeShareToBuild(code)
+  if (!single) return null
+  return {
+    sets: [{ name: 'Set 1', snapshot: single.snapshot }],
+    notes: single.notes,
+    season: single.season,
   }
 }
 

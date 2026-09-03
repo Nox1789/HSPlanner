@@ -35,6 +35,7 @@ import { readStorage, readStorageWithLegacy, removeStorage, writeStorage } from 
 // ponytail: static imports — every view ships in the main bundle, which the boot
 // splash already covers, so switching tabs never waits on a chunk
 import CharacterView from "./views/CharacterView";
+import ComparisonView from "./views/ComparisonView";
 import ConfigView from "./views/ConfigView";
 import EtherView from "./views/EtherView";
 import FiltersView from "./views/filters/FiltersView";
@@ -60,6 +61,7 @@ const SECTIONS = [
   { id: "gear", label: "Gear", view: GearView },
   { id: "merc", label: "Merc", view: MercView },
   { id: "stats", label: "Stats", view: StatsView },
+  { id: "comparison", label: "Comparison", view: ComparisonView },
   { id: "config", label: "Config", view: ConfigView },
   { id: "notes", label: "Notes", view: NotesView },
   { id: "filters", label: "Filters", view: FiltersView },
@@ -224,7 +226,8 @@ function App() {
         if (
           section === "tree" ||
           section === "ether" ||
-          section === "stats"
+          section === "stats" ||
+          section === "comparison"
         ) {
           const input = document.querySelector<HTMLInputElement>(
             "[data-search-input]",

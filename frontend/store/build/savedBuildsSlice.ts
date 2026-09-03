@@ -37,7 +37,7 @@ import {
   renameFolder as storeRenameFolder,
 } from '../../utils/build/savedFolders'
 import {
-  decodeShareToBuild,
+  decodeAnyShareToBuild,
   defaultEnemyResistances,
   encodeBuildToShare,
 } from '../../utils/build/shareBuild'
@@ -73,6 +73,7 @@ type SavedBuildsSlice = Pick<
   | 'addProfileToActiveBuild'
   | 'addEmptyProfileToActiveBuild'
   | 'copyProfileIntoActive'
+  | 'applySnapshotToActive'
   | 'duplicateActiveProfile'
   | 'renameActiveProfile'
   | 'removeActiveProfile'
@@ -170,23 +171,29 @@ export const createSavedBuildsSlice: StateCreator<
   },
 
   importCodeToLibrary: (code) => {
-    const decoded = decodeShareToBuild(code)
-    if (!decoded) return null
+    const decoded = decodeAnyShareToBuild(code)
+    const first = decoded?.sets[0]
+    if (!decoded || !first) return null
     return guardStorage<SavedBuild | null>(
       (m) => set({ storageError: m }),
       null,
       () => {
-        const cls = classes.find((c) => c.id === decoded.snapshot.classId)
+        const cls = classes.find((c) => c.id === first.snapshot.classId)
         const record = storeCreateBuild(
           `Imported ${cls?.name ?? 'build'}`,
-          decoded.snapshot,
-          undefined,
+          first.snapshot,
+          first.name,
           decoded.notes,
           null,
           decoded.season,
         )
+        for (const extra of decoded.sets.slice(1)) {
+          storeAddProfile(record.id, extra.name, extra.snapshot, {
+            activate: false,
+          })
+        }
         bumpSavedBuilds(set)
-        return record
+        return getSavedBuild(record.id) ?? record
       },
     )
   },
@@ -449,6 +456,13 @@ export const createSavedBuildsSlice: StateCreator<
         return true
       },
     ),
+
+  applySnapshotToActive: (snapshot) => {
+    const s = get()
+    if (!s.activeBuildId || !s.activeProfileId) return false
+    set(() => ({ ...snapshotPatch(snapshot) }))
+    return true
+  },
 
   duplicateActiveProfile: (profileId) =>
     guardStorage<string | null>(

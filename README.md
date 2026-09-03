@@ -191,3 +191,19 @@ For more information about tauri see [official Tauri guide](https://tauri.app/st
 **Q:** *Can i import my save file from game to planner?*
 
 **A:** *No you can't. It is against the EULA/TOS.*
+
+---
+
+## Changelog
+
+### 2026-09-03
+
+- [x] **Sets (Set 1 / Set 2 / Set 3)** — three build slots per saved build, switchable via buttons always visible in the top header. Each set keeps its own Tree, Ether, Skills, and Gear config; Character/Stats update instantly on switch. A new, empty set starts blank (level 1, no gear/skills) rather than as a copy.
+- [x] **Set naming** — the Character tab now has an inline field under the build name to rename the currently active set.
+- [x] **Copy Set** — a dropdown next to the set buttons lets you copy any other existing set's full config into the currently active one, on demand (previously only possible by cloning on creation).
+- [x] **Import into a specific set** — the header's *Import* button loads a pasted build code (or shared link) straight into the active set instead of requiring a whole new saved build. If the pasted code bundles several sets, a picker lets you choose which one to load.
+- [x] **Multi-set sharing** — the Share dialog can now bundle up to three sets into a single code, with checkboxes to pick which ones to include (defaults to all). Importing such a code — either into the library or into a specific set — recreates all bundled sets automatically. Single-set codes stay fully backward compatible.
+- [x] **Comparison tab** — new tab after Stats: shows the full Stats view in side-by-side columns, one per set, with toggle buttons to choose which sets to compare (any combination, including all three at once).
+- [x] **Data fixes (game patch 7.0.7–7.0.9)**:
+  - Temporal Echo now triggers every 6th spell cast (was every 3rd).
+  - Ricochet (e.g. from the *Monsoon* bow) now applies to all ranged projectiles, not just physical damage.

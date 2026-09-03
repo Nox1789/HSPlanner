@@ -5,14 +5,13 @@ import { HEADER_BTN_CLASS } from '../app/BuildsMenu'
 import { useBuild } from '../../store/build'
 import { getClass } from '@data'
 import { getActiveProfile, type Folder } from '../../utils/build/savedBuilds'
-import { decodeShareToBuild, parseBuildCodeFromInput } from '../../utils/build/shareBuild'
+import { decodeAnyShareToBuild, decodeShareToBuild, parseBuildCodeFromInput } from '../../utils/build/shareBuild'
 import {
   GistShareError,
   fetchBuildCodeFromGist,
   isGistReference,
 } from '../../utils/build/gistShare'
-import { buildSharePayload, postWebShare } from '../../utils/build/webShare'
-import { ShareDialog } from '../app/ShareDialog'
+import { ShareDialog, type ShareableSet } from '../app/ShareDialog'
 import { readStorage, writeStorage } from '../../utils/storage'
 import { approxKB } from './buildDisplay'
 import { useBuildLibrary } from './useBuildLibrary'
@@ -228,15 +227,15 @@ export default function BuildSelect({
     }
     const code = parseBuildCodeFromInput(raw)
     if (!code) return "Couldn't read a build code from input"
-    const decoded = decodeShareToBuild(code)
-    if (!decoded) return 'Invalid or corrupted build code'
-    const cls = decoded.snapshot.classId
-      ? getClass(decoded.snapshot.classId)
-      : undefined
+    const decoded = decodeAnyShareToBuild(code)
+    const first = decoded?.sets[0]
+    if (!decoded || !first) return 'Invalid or corrupted build code'
+    const cls = first.snapshot.classId ? getClass(first.snapshot.classId) : undefined
+    const setSuffix = decoded.sets.length > 1 ? ` (${decoded.sets.length} sets)` : ''
     setOverlay({
       kind: 'nameImport',
       code,
-      defaultName: `Imported ${cls?.name ?? 'build'}`,
+      defaultName: `Imported ${cls?.name ?? 'build'}${setSuffix}`,
     })
     return null
   }
@@ -710,14 +709,19 @@ export default function BuildSelect({
 
       {shareBuild && shareProfile && (
         <ShareDialog
-          code={shareProfile.code}
-          meta={{
-            className: lib.meta[shareBuild.id]?.className,
-            level: lib.meta[shareBuild.id]?.level,
-          }}
-          createWebShare={async () =>
-            postWebShare(await buildSharePayload(shareBuild))
-          }
+          sets={shareBuild.profiles
+            .map((p) => {
+              const decoded = decodeShareToBuild(p.code)
+              return decoded
+                ? ({ id: p.id, label: p.name, snapshot: decoded.snapshot } satisfies ShareableSet)
+                : null
+            })
+            .filter((s): s is ShareableSet => s != null)}
+          notes={shareBuild.notes}
+          buildId={shareBuild.id}
+          buildName={shareBuild.name}
+          createdAt={shareBuild.createdAt}
+          tags={shareBuild.tags}
           onClose={() => setShareBuildId(null)}
         />
       )}

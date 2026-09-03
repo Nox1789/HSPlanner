@@ -31,38 +31,60 @@ vi.mock('../../utils/build/webShare', () => {
   return {
     WebShareError,
     isWebShareConfigured: vi.fn(() => true),
+    buildSharePayload: vi.fn(async (build: unknown) => ({ build })),
+    postWebShare: vi.fn(async () => ({
+      id: 'x',
+      url: 'https://hsplanner.app/b/XK3FQ2',
+    })),
   }
 })
 
-import { ShareDialog } from './ShareDialog'
+import { ShareDialog, type ShareableSet } from './ShareDialog'
 import {
   isGistSharingConfigured,
   uploadBuildToGist,
 } from '../../utils/build/gistShare'
-import { isWebShareConfigured, WebShareError } from '../../utils/build/webShare'
+import {
+  isWebShareConfigured,
+  postWebShare,
+  WebShareError,
+} from '../../utils/build/webShare'
+import { emptyBuildSnapshot } from '../../store/build/helpers'
 
 afterEach(() => {
   vi.clearAllMocks()
   vi.mocked(isGistSharingConfigured).mockReturnValue(true)
   vi.mocked(isWebShareConfigured).mockReturnValue(true)
+  vi.mocked(postWebShare).mockResolvedValue({
+    id: 'x',
+    url: 'https://hsplanner.app/b/XK3FQ2',
+  })
 })
 
 const noop = () => {}
 
-function renderDialog(overrides?: {
-  createWebShare?: () => Promise<{ url: string }>
-}) {
+const fakeSet: ShareableSet = {
+  id: 'p1',
+  label: 'Set 1',
+  snapshot: { ...emptyBuildSnapshot('amazon'), level: 50 },
+}
+
+function renderDialog(overrides?: { sets?: ShareableSet[] }) {
   return render(
     <ShareDialog
-      code="CODE"
-      meta={{ className: 'amazon', level: 50 }}
-      createWebShare={
-        overrides?.createWebShare ??
-        (async () => ({ url: 'https://hsplanner.app/b/XK3FQ2' }))
-      }
+      sets={overrides?.sets ?? [fakeSet]}
+      notes=""
+      buildId="b1"
+      buildName="Test Build"
+      createdAt="2026-07-01T00:00:00.000Z"
+      tags={[]}
       onClose={noop}
     />,
   )
+}
+
+function currentCode(): string {
+  return (screen.getByRole('textbox') as HTMLTextAreaElement).value
 }
 
 async function pickMethod(
@@ -80,9 +102,10 @@ describe('ShareDialog — build code', () => {
     const user = userEvent.setup()
     vi.spyOn(navigator.clipboard, 'writeText').mockResolvedValue(undefined)
     renderDialog()
-    expect(screen.getByDisplayValue('CODE')).toBeTruthy()
+    const code = currentCode()
+    expect(code.length).toBeGreaterThan(0)
     await user.click(screen.getByRole('button', { name: /copy code/i }))
-    expect(navigator.clipboard.writeText).toHaveBeenCalledWith('CODE')
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith(code)
     expect(await screen.findByText(/code copied/i)).toBeTruthy()
   })
 })
@@ -92,6 +115,7 @@ describe('ShareDialog — gist link', () => {
     const user = userEvent.setup()
     vi.spyOn(navigator.clipboard, 'writeText').mockResolvedValue(undefined)
     renderDialog()
+    const code = currentCode()
     await pickMethod(user, 'Gist link')
     await user.click(screen.getByRole('button', { name: /create link/i }))
     await waitFor(() =>
@@ -99,8 +123,8 @@ describe('ShareDialog — gist link', () => {
         screen.getByDisplayValue('https://gist.github.com/u/abc123'),
       ).toBeTruthy(),
     )
-    expect(vi.mocked(uploadBuildToGist)).toHaveBeenCalledWith('CODE', {
-      className: 'amazon',
+    expect(vi.mocked(uploadBuildToGist)).toHaveBeenCalledWith(code, {
+      className: 'Amazon',
       level: 50,
     })
     expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
@@ -120,12 +144,9 @@ describe('ShareDialog — gist link', () => {
 
 describe('ShareDialog — hsplanner.app link', () => {
   it('creates a web share and shows the copied link', async () => {
-    const createWebShare = vi.fn(async () => ({
-      url: 'https://hsplanner.app/b/XK3FQ2',
-    }))
     const user = userEvent.setup()
     vi.spyOn(navigator.clipboard, 'writeText').mockResolvedValue(undefined)
-    renderDialog({ createWebShare })
+    renderDialog()
     await pickMethod(user, /hsplanner\.app/i)
     await user.click(screen.getByRole('button', { name: /create link/i }))
     await waitFor(() =>
@@ -133,18 +154,18 @@ describe('ShareDialog — hsplanner.app link', () => {
         screen.getByDisplayValue('https://hsplanner.app/b/XK3FQ2'),
       ).toBeTruthy(),
     )
-    expect(createWebShare).toHaveBeenCalledTimes(1)
+    expect(vi.mocked(postWebShare)).toHaveBeenCalledTimes(1)
     expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
       'https://hsplanner.app/b/XK3FQ2',
     )
   })
 
   it('surfaces web share errors', async () => {
-    const createWebShare = vi.fn(async () => {
-      throw new WebShareError('too-large', 'This build is too large to share to the web.')
-    })
+    vi.mocked(postWebShare).mockRejectedValue(
+      new WebShareError('too-large', 'This build is too large to share to the web.'),
+    )
     const user = userEvent.setup()
-    renderDialog({ createWebShare })
+    renderDialog()
     await pickMethod(user, /hsplanner\.app/i)
     await user.click(screen.getByRole('button', { name: /create link/i }))
     expect(

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Modal } from "../ui/Modal";
 import Dropdown from "../ui/Dropdown";
 import {
@@ -7,8 +7,22 @@ import {
   uploadBuildToGist,
 } from "../../utils/build/gistShare";
 import { isWebShareConfigured, WebShareError } from "../../utils/build/webShare";
+import { buildSharePayload, postWebShare } from "../../utils/build/webShare";
+import {
+  encodeBuildToShare,
+  encodeMultiBuildToShare,
+  type BuildSnapshot,
+} from "../../utils/build/shareBuild";
+import { activeSeasonId, getClass } from "@data";
+import type { SavedBuild } from "../../utils/build/savedBuilds";
 
 export type ShareMethod = "code" | "gist" | "web";
+
+export interface ShareableSet {
+  id: string;
+  label: string;
+  snapshot: BuildSnapshot;
+}
 
 type LinkState =
   | { kind: "idle" }
@@ -38,22 +52,31 @@ const FIELD_BG = {
 };
 
 export interface ShareDialogProps {
-  code: string;
-  meta?: { className?: string; level?: number };
-  createWebShare: () => Promise<{ url: string }>;
+  sets: ShareableSet[];
+  notes: string;
+  buildId: string | null;
+  buildName: string | null;
+  createdAt: string;
+  tags: string[];
   onClose: () => void;
 }
 
 export function ShareDialog({
-  code,
-  meta,
-  createWebShare,
+  sets,
+  notes,
+  buildId,
+  buildName,
+  createdAt,
+  tags,
   onClose,
 }: ShareDialogProps) {
   const [method, setMethod] = useState<ShareMethod>("code");
   const [copyStatus, setCopyStatus] = useState<CopyStatus>("idle");
   const [gist, setGist] = useState<LinkState>({ kind: "idle" });
   const [web, setWeb] = useState<LinkState>({ kind: "idle" });
+  const [selectedIds, setSelectedIds] = useState<string[]>(() =>
+    sets.map((s) => s.id),
+  );
 
   const gistConfigured = isGistSharingConfigured();
   const webConfigured = isWebShareConfigured();
@@ -63,6 +86,47 @@ export function ShareDialog({
   const link = method === "gist" ? gist : method === "web" ? web : null;
   const setLink = method === "gist" ? setGist : setWeb;
 
+  const selectedSets = sets.filter((s) => selectedIds.includes(s.id));
+  const effectiveSets = selectedSets.length > 0 ? selectedSets : sets.slice(0, 1);
+
+  const code = useMemo(() => {
+    if (effectiveSets.length <= 1) {
+      return encodeBuildToShare(effectiveSets[0]!.snapshot, notes);
+    }
+    return encodeMultiBuildToShare(
+      effectiveSets.map((s) => ({ name: s.label, snapshot: s.snapshot })),
+      notes,
+    );
+  }, [effectiveSets, notes]);
+
+  const primarySnap = effectiveSets[0]!.snapshot;
+  const meta = {
+    className: primarySnap.classId
+      ? getClass(primarySnap.classId)?.name
+      : undefined,
+    level: primarySnap.level,
+  };
+
+  const createWebShare = async (): Promise<{ url: string }> => {
+    const now = new Date().toISOString();
+    const liveBuild: SavedBuild = {
+      id: buildId ?? "live",
+      name: buildName ?? `${meta.className ?? "Hero"} Lv ${meta.level}`,
+      classId: primarySnap.classId,
+      notes,
+      createdAt,
+      updatedAt: now,
+      profiles: [{ id: "live", name: "Current", code, updatedAt: now }],
+      activeProfileId: "live",
+      folderId: null,
+      favorite: false,
+      tags,
+      season: activeSeasonId,
+      stash: [],
+    };
+    return postWebShare(await buildSharePayload(liveBuild));
+  };
+
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.key === "Escape") onClose();
@@ -70,6 +134,20 @@ export function ShareDialog({
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
+
+  const toggleSet = (id: string) => {
+    setSelectedIds((cur) => {
+      const checked = cur.includes(id);
+      if (checked) {
+        const next = cur.filter((cid) => cid !== id);
+        return next.length > 0 ? next : cur;
+      }
+      return [...cur, id];
+    });
+    setCopyStatus("idle");
+    setGist({ kind: "idle" });
+    setWeb({ kind: "idle" });
+  };
 
   const onCopyCode = async () => {
     try {
@@ -150,6 +228,37 @@ export function ShareDialog({
       panelClassName="max-h-[88vh] w-[34rem] max-w-[94vw]"
     >
       <div className="flex flex-col gap-3 p-5">
+        {sets.length > 1 && (
+          <div className="flex flex-col gap-1.5">
+            <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-faint">
+              Include sets
+            </span>
+            <div className="flex flex-wrap gap-2">
+              {sets.map((s) => {
+                const checked = selectedIds.includes(s.id);
+                return (
+                  <label
+                    key={s.id}
+                    className={`inline-flex cursor-pointer items-center gap-1.5 rounded-[3px] border px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.14em] transition-colors ${
+                      checked
+                        ? "border-accent-deep text-accent-hot"
+                        : "border-border-2 text-muted hover:border-accent-deep"
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() => toggleSet(s.id)}
+                      className="h-3 w-3 accent-[var(--color-accent-hot)]"
+                    />
+                    {s.label}
+                  </label>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-faint">
           Share as
         </span>

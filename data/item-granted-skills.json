@@ -1109,7 +1109,7 @@
   {
     "id": "ricochet",
     "name": "Ricochet",
-    "description": "Projectiles with physical damage bounce off of walls."
+    "description": "Projectiles bounce off of walls."
   },
   {
     "id": "rimskin_assassin",

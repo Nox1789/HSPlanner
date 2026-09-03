@@ -1,15 +1,11 @@
 import { useState } from "react";
 import { useBuild } from "../../store/build";
-import { activeSeasonId, getClass } from "@data";
-import { encodeBuildToShare } from "../../utils/build/shareBuild";
-import { getSavedBuild, type SavedBuild } from "../../utils/build/savedBuilds";
-import { buildSharePayload, postWebShare } from "../../utils/build/webShare";
-import { ShareDialog, type ShareDialogProps } from "./ShareDialog";
+import { getSavedBuild, loadProfileSnapshot } from "../../utils/build/savedBuilds";
+import { ShareDialog, type ShareDialogProps, type ShareableSet } from "./ShareDialog";
 
 type ShareState = Omit<ShareDialogProps, "onClose">;
 
 export default function ShareButton() {
-  const exportSnapshot = useBuild((s) => s.exportBuildSnapshot);
   const [share, setShare] = useState<ShareState | null>(null);
 
   const onOpen = () => {
@@ -17,31 +13,27 @@ export default function ShareButton() {
       setShare(null);
       return;
     }
-    const { notes, activeBuildId } = useBuild.getState();
-    const snap = exportSnapshot();
-    const code = encodeBuildToShare(snap, notes);
-    const saved = activeBuildId ? getSavedBuild(activeBuildId) : null;
-    const now = new Date().toISOString();
-    const clsName = snap.classId ? getClass(snap.classId)?.name : undefined;
-    const liveBuild: SavedBuild = {
-      id: saved?.id ?? "live",
-      name: saved?.name ?? `${clsName ?? "Hero"} Lv ${snap.level}`,
-      classId: snap.classId,
-      notes,
-      createdAt: saved?.createdAt ?? now,
-      updatedAt: now,
-      profiles: [{ id: "live", name: "Current", code, updatedAt: now }],
-      activeProfileId: "live",
-      folderId: null,
-      favorite: false,
-      tags: saved?.tags ?? [],
-      season: activeSeasonId,
-      stash: [],
-    };
+    const { activeBuildId, activeProfileId, exportBuildSnapshot, notes } =
+      useBuild.getState();
+    const savedBuild = activeBuildId ? getSavedBuild(activeBuildId) : null;
+    const sets: ShareableSet[] = savedBuild
+      ? savedBuild.profiles.map((p) => ({
+          id: p.id,
+          label: p.name,
+          snapshot:
+            p.id === activeProfileId
+              ? exportBuildSnapshot()
+              : (loadProfileSnapshot(activeBuildId!, p.id) ??
+                exportBuildSnapshot()),
+        }))
+      : [{ id: "live", label: "Current", snapshot: exportBuildSnapshot() }];
     setShare({
-      code,
-      meta: { className: snap.classId ?? undefined, level: snap.level },
-      createWebShare: async () => postWebShare(await buildSharePayload(liveBuild)),
+      sets,
+      notes,
+      buildId: savedBuild?.id ?? null,
+      buildName: savedBuild?.name ?? null,
+      createdAt: savedBuild?.createdAt ?? new Date().toISOString(),
+      tags: savedBuild?.tags ?? [],
     });
   };
 
