@@ -128,6 +128,8 @@ export interface BuildActions {
   commitActiveProfile: () => boolean
   saveBuildNow: () => boolean
   addProfileToActiveBuild: (name: string) => string | null
+  addEmptyProfileToActiveBuild: (name: string) => string | null
+  copyProfileIntoActive: (sourceProfileId: string) => boolean
   duplicateActiveProfile: (profileId: string) => string | null
   renameActiveProfile: (profileId: string, name: string) => boolean
   removeActiveProfile: (profileId: string) => boolean

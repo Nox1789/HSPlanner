@@ -1,4 +1,4 @@
-import { useMemo, type ReactNode } from 'react'
+import { useMemo, useState, type ReactNode } from 'react'
 import { CornerMarks } from '../components/ui/CornerMarks'
 import { SkillIconImage } from '../components/SkillIconImage'
 import {
@@ -99,6 +99,7 @@ export default function CharacterView() {
   const procToggles = useBuild((s) => s.procToggles)
   const subskillRanks = useBuild((s) => s.subskillRanks)
   const activeBuildId = useBuild((s) => s.activeBuildId)
+  const activeProfileId = useBuild((s) => s.activeProfileId)
   const inventory = useBuild((s) => s.inventory)
   const playerConditions = useBuild((s) => s.playerConditions)
 
@@ -116,9 +117,11 @@ export default function CharacterView() {
 
   const cls = classId ? getClass(classId) : undefined
   const classIcon = classId ? getClassIcon(classId) : undefined
-  const buildName = activeBuildId
-    ? (getSavedBuild(activeBuildId)?.name ?? null)
-    : null
+  const savedBuild = activeBuildId ? getSavedBuild(activeBuildId) : null
+  const buildName = savedBuild?.name ?? null
+  const activeProfile = savedBuild?.profiles.find(
+    (p) => p.id === activeProfileId,
+  )
 
   const attrSpent = Object.values(allocated).reduce((s, v) => s + v, 0)
   const attrTotal = attrPointsFor(level)
@@ -306,6 +309,20 @@ export default function CharacterView() {
             >
               {buildName ?? 'Unsaved build'}
             </div>
+            {activeProfileId && (
+              <div className="mt-0.5 flex items-center gap-1.5">
+                <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-faint">
+                  Set
+                </span>
+                <SetNameField
+                  key={activeProfileId}
+                  initialName={activeProfile?.name ?? ''}
+                  onCommit={(name) =>
+                    useBuild.getState().renameActiveProfile(activeProfileId, name)
+                  }
+                />
+              </div>
+            )}
             <div className="mt-1 flex flex-wrap items-center gap-2 font-mono text-[11px] uppercase tracking-[0.16em] text-muted">
               <span>{cls?.name ?? 'No class'}</span>
               <span className="text-faint">·</span>
@@ -546,6 +563,36 @@ export default function CharacterView() {
         <LoadoutCard title="Procs" entries={procs} empty="No procs active." />
       </div>
     </div>
+  )
+}
+
+function SetNameField({
+  initialName,
+  onCommit,
+}: {
+  initialName: string
+  onCommit: (name: string) => void
+}) {
+  const [draft, setDraft] = useState(initialName)
+  return (
+    <input
+      value={draft}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={() => {
+        const trimmed = draft.trim()
+        if (!trimmed) {
+          setDraft(initialName)
+          return
+        }
+        if (trimmed !== initialName) onCommit(trimmed)
+      }}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') e.currentTarget.blur()
+      }}
+      placeholder="Set name"
+      maxLength={500}
+      className="min-w-0 max-w-[220px] flex-1 border-b border-transparent bg-transparent px-0.5 py-0.5 font-mono text-[13px] text-text outline-none transition-colors hover:border-border-2 focus:border-accent-deep"
+    />
   )
 }
 

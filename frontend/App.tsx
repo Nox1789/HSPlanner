@@ -13,6 +13,7 @@ import Logo from "./components/ui/Logo";
 import SeasonErrorBanner from "./components/app/SeasonErrorBanner";
 import SeasonSwitcher from "./components/app/SeasonSwitcher";
 import SeasonToast from "./components/app/SeasonToast";
+import SetSwitcher from "./components/app/SetSwitcher";
 import SettingsModal from "./components/app/SettingsModal";
 import ShareButton from "./components/app/ShareButton";
 import StorageErrorBanner from "./components/app/StorageErrorBanner";
@@ -342,7 +343,11 @@ function App() {
             })}
           </nav>
 
-          <div className="ml-auto flex items-center gap-2.5">
+          <div className="flex flex-1 items-center justify-center">
+            <SetSwitcher />
+          </div>
+
+          <div className="flex items-center gap-2.5">
             {cls?.primaryAttribute && (
               <span
                 className="hidden items-center gap-1.5 rounded-[3px] border border-accent-deep/40 px-2 py-1 font-mono text-[10px] uppercase tracking-[0.18em] text-accent-hot md:inline-flex"

@@ -41,7 +41,12 @@ import {
   defaultEnemyResistances,
   encodeBuildToShare,
 } from '../../utils/build/shareBuild'
-import { bumpSavedBuilds, emptyAllocation, snapshotPatch } from './helpers'
+import {
+  bumpSavedBuilds,
+  emptyAllocation,
+  emptyBuildSnapshot,
+  snapshotPatch,
+} from './helpers'
 import type { BuildStore } from './types'
 
 type SavedBuildsSlice = Pick<
@@ -66,6 +71,8 @@ type SavedBuildsSlice = Pick<
   | 'commitActiveProfile'
   | 'saveBuildNow'
   | 'addProfileToActiveBuild'
+  | 'addEmptyProfileToActiveBuild'
+  | 'copyProfileIntoActive'
   | 'duplicateActiveProfile'
   | 'renameActiveProfile'
   | 'removeActiveProfile'
@@ -397,6 +404,49 @@ export const createSavedBuildsSlice: StateCreator<
           savedBuildsVersion: cur.savedBuildsVersion + 1,
         }))
         return result.profile.id
+      },
+    ),
+
+  addEmptyProfileToActiveBuild: (name) =>
+    guardStorage<string | null>(
+      (m) => set({ storageError: m }),
+      null,
+      () => {
+        const s = get()
+        if (!s.activeBuildId) return null
+        if (s.activeProfileId && useSettings.getState().autoSave) {
+          storeCommitProfile(
+            s.activeBuildId,
+            s.activeProfileId,
+            s.exportBuildSnapshot(),
+          )
+        }
+        const blank = emptyBuildSnapshot(s.classId)
+        const result = storeAddProfile(s.activeBuildId, name, blank, {
+          activate: true,
+        })
+        if (!result) return null
+        set((cur) => ({
+          ...snapshotPatch(blank),
+          activeProfileId: result.profile.id,
+          savedBuildsVersion: cur.savedBuildsVersion + 1,
+        }))
+        return result.profile.id
+      },
+    ),
+
+  copyProfileIntoActive: (sourceProfileId) =>
+    guardStorage(
+      (m) => set({ storageError: m }),
+      false,
+      () => {
+        const s = get()
+        if (!s.activeBuildId || !s.activeProfileId) return false
+        if (sourceProfileId === s.activeProfileId) return false
+        const snap = loadProfileSnapshot(s.activeBuildId, sourceProfileId)
+        if (!snap) return false
+        set(() => ({ ...snapshotPatch(snap) }))
+        return true
       },
     ),
 

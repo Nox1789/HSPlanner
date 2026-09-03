@@ -1,4 +1,4 @@
-import { entityRatesFrom } from '../../utils/build/entityRates'
+import { defaultEntityRates, entityRatesFrom } from '../../utils/build/entityRates'
 import { gameConfig, getClass } from '@data'
 import { defaultEnemyResistances } from '../../utils/build/shareBuild'
 import type { BuildSnapshot } from '../../utils/build/shareBuild'
@@ -10,6 +10,36 @@ export function emptyAllocation(): AttrMap {
     acc[a.key] = 0
     return acc
   }, {})
+}
+
+export function emptyBuildSnapshot(classId: string | null): BuildSnapshot {
+  return {
+    classId,
+    level: 1,
+    allocated: emptyAllocation(),
+    inventory: {},
+    skillRanks: {},
+    subskillRanks: {},
+    allocatedTreeNodes: new Set<number>(),
+    treeSocketed: {},
+    activeSkillIds: [],
+    activeAuraId: null,
+    activeBuffs: {},
+    enemyConditions: {},
+    playerConditions: {},
+    skillProjectiles: {},
+    enemyResistances: defaultEnemyResistances(),
+    procToggles: {},
+    disabledPotions: {},
+    killsPerSec: 1,
+    entityRates: defaultEntityRates(),
+    customStats: [],
+    allocatedEtherNodes: new Set<number>(),
+    mercClassId: null,
+    mercSkillRanks: {},
+    mercInventory: {},
+    mercDisabledAuras: {},
+  }
 }
 
 export function bumpSavedBuilds(
